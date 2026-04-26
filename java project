@@ -1,0 +1,408 @@
+// ============================================================
+// Employee Management System - Java Mini Project
+// Covers: Inheritance, Polymorphism, Interfaces, Packages,
+//         Exception Handling, and Database Connectivity (JDBC)
+// ============================================================
+
+// ---------- PACKAGE DECLARATION ----------
+  // CO2: Demonstrates use of packages
+
+import java.sql.*;            // JDBC classes for DB connectivity (CO4)
+import java.util.Scanner;
+
+// ============================================================
+// INTERFACE (CO2: Demonstrates use of interfaces)
+// Defines a contract that all employee types must follow
+// ============================================================
+interface Displayable {
+    void displayInfo();       // Every employee type must implement this
+    double calculateBonus();  // Each type calculates bonus differently (polymorphism)
+}
+
+// ============================================================
+// BASE CLASS - Employee (CO2: Base class for inheritance)
+// ============================================================
+class Employee implements Displayable {
+    // Encapsulated fields
+    protected int id;
+    protected String name;
+    protected double salary;
+
+    // Constructor
+    public Employee(int id, String name, double salary) {
+        this.id = id;
+        this.name = name;
+        this.salary = salary;
+    }
+
+    // Getters
+    public int getId()       { return id; }
+    public String getName()  { return name; }
+    public double getSalary(){ return salary; }
+    public void setSalary(double salary) { this.salary = salary; }
+
+    // CO2: Overriding toString() — polymorphism with Object class
+    @Override
+    public String toString() {
+        return "ID: " + id + " | Name: " + name + " | Salary: " + salary;
+    }
+
+    // CO2: Implementing interface method
+    @Override
+    public void displayInfo() {
+        System.out.println("[Employee] " + toString());
+    }
+
+    // CO2: Base bonus — will be overridden (polymorphism)
+    @Override
+    public double calculateBonus() {
+        return salary * 0.10; // 10% bonus for base employee
+    }
+}
+
+// ============================================================
+// SUBCLASS 1 - Manager (CO2: Demonstrates Inheritance)
+// Inherits from Employee and overrides methods (Polymorphism)
+// ============================================================
+class Manager extends Employee {
+    private String department;
+
+    public Manager(int id, String name, double salary, String department) {
+        super(id, name, salary); // Call parent constructor
+        this.department = department;
+    }
+
+    // CO2: Method Overriding — Polymorphism
+    @Override
+    public void displayInfo() {
+        System.out.println("[Manager] " + toString() + " | Dept: " + department);
+    }
+
+    // CO2: Polymorphism — Manager gets 20% bonus
+    @Override
+    public double calculateBonus() {
+        return salary * 0.20;
+    }
+}
+
+// ============================================================
+// SUBCLASS 2 - Intern (CO2: Another Inheritance example)
+// ============================================================
+class Intern extends Employee {
+    private int durationMonths;
+
+    public Intern(int id, String name, double salary, int durationMonths) {
+        super(id, name, salary);
+        this.durationMonths = durationMonths;
+    }
+
+    // CO2: Method Overriding — Polymorphism
+    @Override
+    public void displayInfo() {
+        System.out.println("[Intern] " + toString() + " | Duration: " + durationMonths + " months");
+    }
+
+    // CO2: Interns get only 5% bonus
+    @Override
+    public double calculateBonus() {
+        return salary * 0.05;
+    }
+}
+
+// ============================================================
+// CUSTOM EXCEPTION CLASS (CO3: Exception Handling)
+// ============================================================
+class EmployeeNotFoundException extends Exception {
+    public EmployeeNotFoundException(int id) {
+        super("Employee with ID " + id + " not found in the database.");
+    }
+}
+
+// ============================================================
+// DATABASE HELPER CLASS (CO4: JDBC Connectivity)
+// Handles all SQL operations: INSERT, SELECT, UPDATE, DELETE
+// ============================================================
+class DatabaseHelper {
+
+    // ----- Database connection settings -----
+    private static final String URL      = "jdbc:mysql://localhost:3306/employee_db";
+    private static final String USER     = "root";
+    private static final String PASSWORD = "your_password"; // Change this
+
+    // ----- Get a connection to the database -----
+    public static Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(URL, USER, PASSWORD);
+    }
+
+    // ============================================================
+    // CO4: INSERT query — Add a new employee to the database
+    // ============================================================
+    public static void insertEmployee(String name, double salary, String type) {
+        String sql = "INSERT INTO employees (name, salary, type) VALUES (?, ?, ?)";
+
+        try (Connection conn = getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+
+            pst.setString(1, name);
+            pst.setDouble(2, salary);
+            pst.setString(3, type);
+            int rows = pst.executeUpdate();
+
+            if (rows > 0) {
+                System.out.println("✔ Employee inserted successfully.");
+            }
+
+        } catch (SQLException e) {
+            // CO3: Exception Handling for SQL errors
+            System.out.println("✘ Insert failed: " + e.getMessage());
+        }
+    }
+
+    // ============================================================
+    // CO4: SELECT query — Retrieve and display all employees
+    // ============================================================
+    public static void selectAllEmployees() {
+        String sql = "SELECT * FROM employees";
+
+        try (Connection conn = getConnection();
+             Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+
+            System.out.println("\n--- Employee List ---");
+            boolean found = false;
+
+            while (rs.next()) {
+                found = true;
+                System.out.println(
+                    "ID: "     + rs.getInt("id")       + " | " +
+                    "Name: "   + rs.getString("name")  + " | " +
+                    "Salary: " + rs.getDouble("salary") + " | " +
+                    "Type: "   + rs.getString("type")
+                );
+            }
+
+            if (!found) {
+                System.out.println("No employees found.");
+            }
+
+        } catch (SQLException e) {
+            // CO3: Exception Handling
+            System.out.println("✘ Select failed: " + e.getMessage());
+        }
+    }
+
+    // ============================================================
+    // CO4: UPDATE query — Update an employee's salary by ID
+    // CO3: Throws custom exception if employee not found
+    // ============================================================
+    public static void updateEmployee(int id, double newSalary)
+            throws EmployeeNotFoundException {
+
+        String checkSql  = "SELECT COUNT(*) FROM employees WHERE id = ?";
+        String updateSql = "UPDATE employees SET salary = ? WHERE id = ?";
+
+        try (Connection conn = getConnection()) {
+
+            // First check if employee exists (CO3: validation before update)
+            try (PreparedStatement checkPst = conn.prepareStatement(checkSql)) {
+                checkPst.setInt(1, id);
+                ResultSet rs = checkPst.executeQuery();
+                rs.next();
+
+                // CO3: Throw custom exception if not found
+                if (rs.getInt(1) == 0) {
+                    throw new EmployeeNotFoundException(id);
+                }
+            }
+
+            // Perform the update
+            try (PreparedStatement pst = conn.prepareStatement(updateSql)) {
+                pst.setDouble(1, newSalary);
+                pst.setInt(2, id);
+                pst.executeUpdate();
+                System.out.println("✔ Salary updated for employee ID: " + id);
+            }
+
+        } catch (SQLException e) {
+            System.out.println("✘ Update failed: " + e.getMessage());
+        }
+        // Note: EmployeeNotFoundException propagates up to caller (CO3)
+    }
+
+    // ============================================================
+    // CO4: DELETE query — Delete an employee by ID
+    // CO3: Exception handling if employee not found
+    // ============================================================
+    public static void deleteEmployee(int id) throws EmployeeNotFoundException {
+        String checkSql  = "SELECT COUNT(*) FROM employees WHERE id = ?";
+        String deleteSql = "DELETE FROM employees WHERE id = ?";
+
+        try (Connection conn = getConnection()) {
+
+            // CO3: Validate before deleting
+            try (PreparedStatement checkPst = conn.prepareStatement(checkSql)) {
+                checkPst.setInt(1, id);
+                ResultSet rs = checkPst.executeQuery();
+                rs.next();
+
+                if (rs.getInt(1) == 0) {
+                    throw new EmployeeNotFoundException(id); // CO3
+                }
+            }
+
+            // Perform deletion
+            try (PreparedStatement pst = conn.prepareStatement(deleteSql)) {
+                pst.setInt(1, id);
+                pst.executeUpdate();
+                System.out.println("✔ Employee ID " + id + " deleted successfully.");
+            }
+
+        } catch (SQLException e) {
+            System.out.println("✘ Delete failed: " + e.getMessage());
+        }
+    }
+}
+
+// ============================================================
+// MAIN CLASS — Entry Point
+// ============================================================
+public class EmployeeManagement {
+
+    public static void main(String[] args) {
+
+        Scanner sc = new Scanner(System.in);
+
+        // CO2: Polymorphism demo — treating all types as Displayable
+        System.out.println("=== Polymorphism Demo ===");
+        Displayable[] staff = {
+            new Employee(0, "Alice", 50000),
+            new Manager(0,  "Bob", 80000, "IT"),
+            new Intern(0,   "Charlie", 20000, 6)
+        };
+
+        for (Displayable d : staff) {
+            d.displayInfo();                                          // CO2: Polymorphism
+            System.out.println("   Bonus: ₹" + d.calculateBonus()); // CO2: Polymorphism
+        }
+
+        System.out.println("\n=== Employee Management System ===");
+
+        // Main menu loop
+        while (true) {
+            System.out.println("\n1. Add Employee (INSERT)");
+            System.out.println("2. View All Employees (SELECT)");
+            System.out.println("3. Update Salary (UPDATE)");
+            System.out.println("4. Delete Employee (DELETE)");
+            System.out.println("5. Exit");
+            System.out.print("Enter choice: ");
+
+            int choice;
+
+            // CO3: Exception handling for invalid menu input
+            try {
+                choice = Integer.parseInt(sc.nextLine().trim());
+            } catch (NumberFormatException e) {
+                System.out.println("✘ Invalid input. Please enter a number.");
+                continue;
+            }
+
+            switch (choice) {
+
+                case 1: // CO4: INSERT
+                    try {
+                        System.out.print("Enter name: ");
+                        String name = sc.nextLine().trim();
+
+                        // CO3: Validate name is not empty
+                        if (name.isEmpty()) throw new IllegalArgumentException("Name cannot be empty.");
+
+                        System.out.print("Enter salary: ");
+                        double salary = Double.parseDouble(sc.nextLine().trim());
+
+                        // CO3: Validate salary
+                        if (salary < 0) throw new IllegalArgumentException("Salary cannot be negative.");
+
+                        System.out.print("Enter type (Employee/Manager/Intern): ");
+                        String type = sc.nextLine().trim();
+
+                        DatabaseHelper.insertEmployee(name, salary, type); // CO4
+
+                    } catch (IllegalArgumentException e) {
+                        // CO3: Catching custom validation errors
+                        System.out.println("✘ Input error: " + e.getMessage());
+                    }
+                    break;
+
+                case 2: // CO4: SELECT
+                    DatabaseHelper.selectAllEmployees();
+                    break;
+
+                case 3: // CO4: UPDATE
+                    try {
+                        System.out.print("Enter Employee ID to update: ");
+                        int id = Integer.parseInt(sc.nextLine().trim());
+
+                        System.out.print("Enter new salary: ");
+                        double newSalary = Double.parseDouble(sc.nextLine().trim());
+
+                        if (newSalary < 0) throw new IllegalArgumentException("Salary cannot be negative.");
+
+                        DatabaseHelper.updateEmployee(id, newSalary); // CO4
+
+                    } catch (NumberFormatException e) {
+                        System.out.println("✘ Invalid number format: " + e.getMessage());
+                    } catch (IllegalArgumentException e) {
+                        System.out.println("✘ " + e.getMessage());
+                    } catch (EmployeeNotFoundException e) {
+                        // CO3: Catching our custom exception
+                        System.out.println("✘ " + e.getMessage());
+                    }
+                    break;
+
+                case 4: // CO4: DELETE
+                    try {
+                        System.out.print("Enter Employee ID to delete: ");
+                        int id = Integer.parseInt(sc.nextLine().trim());
+                        DatabaseHelper.deleteEmployee(id); // CO4
+
+                    } catch (NumberFormatException e) {
+                        System.out.println("✘ Invalid ID format.");
+                    } catch (EmployeeNotFoundException e) {
+                        // CO3: Catching custom exception
+                        System.out.println("✘ " + e.getMessage());
+                    }
+                    break;
+
+                case 5:
+                    System.out.println("Exiting... Goodbye!");
+                    sc.close();
+                    System.exit(0);
+                    break;
+
+                default:
+                    System.out.println("✘ Invalid choice. Please select 1–5.");
+            }
+        }
+    }
+}
+
+/*
+ * ============================================================
+ * SQL SETUP SCRIPT — Run this in MySQL before running the app
+ * ============================================================
+ *
+ * CREATE DATABASE employee_db;
+ * USE employee_db;
+ *
+ * CREATE TABLE employees (
+ *     id     INT AUTO_INCREMENT PRIMARY KEY,
+ *     name   VARCHAR(100) NOT NULL,
+ *     salary DOUBLE       NOT NULL,
+ *     type   VARCHAR(50)  DEFAULT 'Employee'
+ * );
+ *
+ * -- Add MySQL JDBC connector jar to your classpath:
+ * -- javac -cp .;mysql-connector-java-8.x.x.jar EmployeeManagement.java
+ * -- java  -cp .;mysql-connector-java-8.x.x.jar employeemanagement.EmployeeManagement
+ * ============================================================
+ */
